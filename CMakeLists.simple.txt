@@ -1,0 +1,30 @@
+# Minimal CMakeLists.txt for testing compilation
+cmake_minimum_required(VERSION 3.15)
+project(crdl VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# For now, just test compilation without external dependencies
+add_executable(crdl_test
+    src/main.cpp
+    src/core/config.cpp
+    src/core/types.cpp
+    src/utils/string_utils.cpp
+)
+
+target_include_directories(crdl_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# Add definitions to disable external dependencies for now
+target_compile_definitions(crdl_test PRIVATE
+    CRDL_NO_CURL
+    CRDL_NO_SPDLOG
+)
+
+if(MSVC)
+    target_compile_options(crdl_test PRIVATE /W3)
+else()
+    target_compile_options(crdl_test PRIVATE -Wall -Wextra)
+endif()
