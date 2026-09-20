@@ -48,14 +48,39 @@ struct SessionGuard {
 ```
 
 ### 3. Active Stream Cleanup
-**Issue**: Failed DRM requests left active streams on the server (420 errors).
-**Fix**: Clean up streams when DRM key acquisition fails.
+**Issue**: Failed downloads left active streams on the server, causing 420 "Too many active streams" errors.
+**Fix**: Clean up streams on ALL error paths - DRM failure, download failure, and even on success.
 
 ```cpp
-if (!keys_result) {
-    LOG_ERROR("Failed to get DRM keys: {}", keys_result.error_message());
+// Video: cleanup before checking result
+auto video_file = downloader_.download_video(...);
+
+// Always clean up video stream (success or failure)
+if (!stream_info.video_token.empty()) {
+    LOG_INFO("Cleaning up video stream");
     delete_stream(stream_guid, stream_info.video_token);
-    return Result<void>(ErrorCode::DRMError, "Could not acquire decryption keys");
+}
+
+if (!video_file) {
+    LOG_ERROR("Video download failed: {}", video_file.error_message());
+    return Result<void>(video_file.error(), video_file.error_message());
+}
+
+// Audio: cleanup on DRM failure
+if (!keys_result) {
+    LOG_WARN("Failed to get DRM keys for audio {}, cleaning up stream", lang);
+    if (!audio_stream.value().video_token.empty()) {
+        delete_stream(audio_guid, audio_stream.value().video_token);
+    }
+    continue;
+}
+
+// Audio: cleanup after download attempt
+auto audio_file = downloader_.download_audio(...);
+
+// Always clean up audio stream
+if (!audio_stream.value().video_token.empty()) {
+    delete_stream(audio_guid, audio_stream.value().video_token);
 }
 ```
 
