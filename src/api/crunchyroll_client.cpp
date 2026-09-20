@@ -106,17 +106,64 @@ public:
 
             std::vector<Season> seasons;
             if (j.contains("items") && j["items"].is_array()) {
+                // Use a map to deduplicate seasons by identifier
+                // Python: unique_seasons[identifier] keeps only one per identifier
+                std::map<std::string, Season> unique_seasons;
+
                 for (const auto& item : j["items"]) {
                     Season season;
                     season.id = item.value("id", "");
                     season.title = item.value("title", "");
                     season.season_number = item.value("season_number", 1);
                     season.series_id = item.value("series_id", "");
-                    seasons.push_back(season);
+
+                    // Get identifier for deduplication (e.g., "GRMG8ZQZR|S1")
+                    std::string identifier = item.value("identifier", "");
+
+                    if (identifier.empty()) {
+                        // No identifier, just add it
+                        seasons.push_back(season);
+                    } else {
+                        // Check if we already have this identifier
+                        auto it = unique_seasons.find(identifier);
+                        if (it == unique_seasons.end()) {
+                            // First occurrence, add it
+                            unique_seasons[identifier] = season;
+                        } else {
+                            // Duplicate - prefer non-dubbed (is_dubbed = false)
+                            bool is_dubbed = item.value("is_dubbed", false);
+                            bool existing_dubbed = false;
+
+                            // Check if existing is dubbed by looking at original version
+                            if (item.contains("versions") && item["versions"].is_array()) {
+                                for (const auto& v : item["versions"]) {
+                                    if (v.value("original", false) && v.value("audio_locale", "") == "ja-JP") {
+                                        is_dubbed = false;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            // Replace if current is NOT dubbed and existing is
+                            if (!is_dubbed && existing_dubbed) {
+                                unique_seasons[identifier] = season;
+                            }
+                        }
+                    }
                 }
+
+                // Convert map to vector and sort by season_number
+                for (const auto& pair : unique_seasons) {
+                    seasons.push_back(pair.second);
+                }
+                std::sort(seasons.begin(), seasons.end(),
+                    [](const Season& a, const Season& b) {
+                        return a.season_number < b.season_number;
+                    });
             }
 
-            LOG_INFO("Retrieved {} seasons", seasons.size());
+            LOG_INFO("Retrieved {} unique seasons (filtered from {} total)",
+                     seasons.size(), j["items"].size());
             return Result<std::vector<Season>>(seasons);
 
         } catch (const json::exception& e) {

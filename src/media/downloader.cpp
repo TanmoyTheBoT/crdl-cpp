@@ -66,13 +66,20 @@ public:
         }
 
         // Add ALL decryption keys (all are needed for different quality streams)
+        // BUT skip SIGNING keys - only use CONTENT keys
         if (!keys.empty()) {
-            LOG_INFO("Adding {} DRM key(s) to video download command", keys.size());
+            int content_keys = 0;
             for (const auto& key : keys) {
+                if (key.type == "SIGNING") {
+                    LOG_DEBUG("Skipping SIGNING key: {}", key.kid);
+                    continue;
+                }
                 args.push_back("--key");
                 args.push_back(key.kid + ":" + key.key);
                 LOG_INFO("Added key: {}", key.kid);
+                content_keys++;
             }
+            LOG_INFO("Added {} CONTENT key(s) to video download command", content_keys);
         } else {
             LOG_WARN("No DRM keys provided - download will fail if content is encrypted");
         }
