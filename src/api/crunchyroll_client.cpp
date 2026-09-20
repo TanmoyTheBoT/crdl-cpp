@@ -300,11 +300,16 @@ public:
         }
 
         auto video_file = downloader_.download_video(stream_info, metadata, keys, config_.quality, auth_manager_.get_access_token());
-        if (!video_file) return Result<void>(video_file.error(), video_file.error_message());
 
-        // Clean up video stream
+        // Always clean up video stream (success or failure)
         if (!stream_info.video_token.empty()) {
+            LOG_INFO("Cleaning up video stream");
             delete_stream(stream_guid, stream_info.video_token);
+        }
+
+        if (!video_file) {
+            LOG_ERROR("Video download failed: {}", video_file.error_message());
+            return Result<void>(video_file.error(), video_file.error_message());
         }
 
         // Download audio tracks
@@ -347,20 +352,30 @@ public:
                 if (keys_result) {
                     audio_keys = keys_result.value();
                     LOG_INFO("Got {} keys for audio track", audio_keys.size());
+                } else {
+                    LOG_WARN("Failed to get DRM keys for audio {}, cleaning up stream", lang);
+                    if (!audio_stream.value().video_token.empty()) {
+                        delete_stream(audio_guid, audio_stream.value().video_token);
+                    }
+                    continue;
                 }
             }
 
             auto audio_file = downloader_.download_audio(audio_stream.value(), metadata, audio_keys, lang, auth_manager_.get_access_token());
+
+            // Always clean up audio stream (success or failure)
+            if (!audio_stream.value().video_token.empty()) {
+                delete_stream(audio_guid, audio_stream.value().video_token);
+            }
+
             if (audio_file) {
                 AudioTrack track;
                 track.file_path = audio_file.value();
                 track.language_code = lang;
                 track.is_default = is_original;
                 audio_tracks.push_back(track);
-            }
-
-            if (!audio_stream.value().video_token.empty()) {
-                delete_stream(audio_guid, audio_stream.value().video_token);
+            } else {
+                LOG_WARN("Failed to download audio track: {}", lang);
             }
         }
 
