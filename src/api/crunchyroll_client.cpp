@@ -780,7 +780,8 @@ public:
             }
 
             std::cout << (i + 1) << ". Season " << season.season_number << ": "
-                      << season.title << " (" << episodes.size() << " episodes)" << std::endl;
+                      << season.title << " (" << episodes.size() << " episodes)"
+                      << " (Season ID: " << season.id << ")" << std::endl;
 
             // Show episode details
             std::cout << "   Episodes:" << std::endl;
