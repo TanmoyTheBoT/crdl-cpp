@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <regex>
+#include <iostream>
 
 using json = nlohmann::json;
 
@@ -739,7 +740,44 @@ public:
             return Result<void>(ErrorCode::Unknown, "No seasons found");
         }
 
-        LOG_INFO("Found {} seasons in series", seasons.size());
+        LOG_INFO("Found {} unique seasons in series", seasons.size());
+
+        // Get episode counts for each season
+        int total_episodes = 0;
+        std::vector<int> episode_counts;
+
+        std::cout << "\n=== Series: " << series.title << " ===" << std::endl;
+        std::cout << "Total unique seasons: " << seasons.size() << "\n" << std::endl;
+
+        for (size_t i = 0; i < seasons.size(); ++i) {
+            const auto& season = seasons[i];
+            auto episodes_result = get_episodes(season.id);
+
+            int ep_count = 0;
+            if (episodes_result) {
+                ep_count = episodes_result.value().size();
+                total_episodes += ep_count;
+            }
+            episode_counts.push_back(ep_count);
+
+            std::cout << (i + 1) << ". Season " << season.season_number << ": "
+                      << season.title << " (" << ep_count << " episodes)" << std::endl;
+        }
+
+        std::cout << "\nFound " << total_episodes << " total episodes across all seasons" << std::endl;
+
+        // Ask for confirmation
+        std::cout << "\nDo you want to download the whole series (" << total_episodes
+                  << " episodes)? (y/n): ";
+        std::string response;
+        std::getline(std::cin, response);
+
+        if (response != "y" && response != "Y" && response != "yes" && response != "Yes") {
+            std::cout << "Download canceled." << std::endl;
+            return Result<void>(ErrorCode::Success);
+        }
+
+        std::cout << "Starting download of all seasons for " << series.title << "..." << std::endl;
 
         int total_fail = 0;
 

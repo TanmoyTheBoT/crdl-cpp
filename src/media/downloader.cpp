@@ -45,23 +45,24 @@ public:
             "--drop-subtitle", ".*"
         };
 
-        // Add quality selection
+        // Add quality selection with fallback
+        // For specific resolutions, add :for=best as fallback if res doesn't match
         switch (quality) {
             case Quality::P1080:
                 args.push_back("-sv");
-                args.push_back("res=\"1080*\"");
+                args.push_back("res=1080*:for=best");  // fallback to best if no 1080p
                 break;
             case Quality::P720:
                 args.push_back("-sv");
-                args.push_back("res=\"720*\"");
+                args.push_back("res=720*:for=best");   // fallback to best if no 720p
                 break;
             case Quality::Best:
                 args.push_back("-sv");
-                args.push_back("best");
+                args.push_back("for=best");
                 break;
             case Quality::Worst:
                 args.push_back("-sv");
-                args.push_back("worst");
+                args.push_back("for=worst");
                 break;
         }
 
@@ -116,6 +117,14 @@ public:
         }
 
         // Execute download
+        LOG_DEBUG("N_m3u8DL-RE command: {}", [&]() {
+            std::string cmd;
+            for (const auto& arg : args) {
+                if (!cmd.empty()) cmd += " ";
+                cmd += "\"" + arg + "\"";
+            }
+            return cmd;
+        }());
         auto result = execute_command(args);
         if (result != 0) {
             return Result<std::filesystem::path>(ErrorCode::DownloadFailed,
