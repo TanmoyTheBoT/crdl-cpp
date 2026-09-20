@@ -5,6 +5,7 @@
 #include <crdl/drm/widevine_cdm.h>
 #include <crdl/utils/logger.h>
 #include <crdl/utils/string_utils.h>
+#include <crdl/utils/json_utils.h>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <regex>
@@ -60,6 +61,7 @@ public:
 
         try {
             json j = json::parse(response.value().body);
+            save_json(config_.json_dir, "episode.json", j);
 
             Episode ep;
             ep.id = j.value("id", "");
@@ -94,6 +96,7 @@ public:
                 if (series_response && series_response.value().is_success()) {
                     try {
                         json series_json = json::parse(series_response.value().body);
+                        save_json(config_.json_dir, "series.json", series_json);
                         ep.series_title = series_json.value("title", "");
                         LOG_INFO("Series title: {}", ep.series_title);
                     } catch (...) {
@@ -187,6 +190,7 @@ public:
             // Success - parse response
             try {
                 json j = json::parse(response.value().body);
+                save_json(config_.json_dir, "streams.json", j);
 
                 StreamInfo info;
                 info.mpd_url = j.value("url", "");
@@ -305,7 +309,8 @@ public:
                 stream_info.video_token,
                 stream_guid,
                 auth_manager_.get_access_token(),
-                cookies_json
+                cookies_json,
+                config_.json_dir
             );
             if (keys_result) {
                 keys = keys_result.value();
@@ -369,7 +374,8 @@ public:
                     audio_stream.value().video_token,
                     audio_guid,
                     auth_manager_.get_access_token(),
-                    cookies_json
+                    cookies_json,
+                    config_.json_dir
                 );
                 if (keys_result) {
                     audio_keys = keys_result.value();
@@ -481,6 +487,7 @@ private:
 
         try {
             json j = json::parse(response.value().body);
+            save_json(config_.json_dir, "index.json", j);
             return Result<json>(j["cms"]);
         } catch (const json::exception& e) {
             return Result<json>(ErrorCode::Unknown, "Parse error");

@@ -2,6 +2,7 @@
 #include <crdl/utils/logger.h>
 #include <crdl/utils/string_utils.h>
 #include <crdl/utils/http_client.h>
+#include <crdl/utils/json_utils.h>
 #include <widevine/cdm.h>
 #include <widevine/device.h>
 #include <widevine/pssh.h>
@@ -247,7 +248,8 @@ public:
         const std::string& video_token,
         const std::string& content_id,
         const std::string& bearer_token,
-        const std::string& cookies = "") {
+        const std::string& cookies,
+        const std::filesystem::path& json_dir) {
 
         LOG_INFO("=== Getting Widevine License Keys (Native C++) ===");
         LOG_INFO("PSSH: {}", pssh_base64.substr(0, 50) + "...");
@@ -332,6 +334,8 @@ public:
             std::vector<uint8_t> license_data;
             try {
                 json response_json = json::parse(response.value().body);
+                save_json(json_dir, "drm_info.json", response_json);
+
                 if (response_json.contains("license")) {
                     // Decode base64 license
                     std::string license_b64 = response_json["license"];
@@ -361,6 +365,8 @@ public:
 
             // Convert to crdl DRMKey format
             std::vector<DRMKey> keys;
+            json keys_json = json::array();
+
             for (const auto& wv_key : widevine_keys) {
                 DRMKey key;
                 key.kid = wv_key.kid_hex();
@@ -368,11 +374,19 @@ public:
                 key.type = wv_key.type;
                 keys.push_back(key);
 
+                keys_json.push_back({
+                    {"kid", key.kid},
+                    {"key", key.key},
+                    {"type", key.type}
+                });
+
                 LOG_INFO("Retrieved DRM Key:");
                 LOG_INFO("  KID: {}", key.kid);
                 LOG_INFO("  Key: {}", key.key);
                 LOG_INFO("  Type: {}", key.type);
             }
+
+            save_json(json_dir, "keys.json", keys_json);
 
             LOG_INFO("Successfully retrieved {} decryption key(s)", keys.size());
             return Result<std::vector<DRMKey>>(keys);
@@ -408,14 +422,19 @@ Result<StreamInfo> WidevineCDM::extract_mpd_info(
     return impl_->extract_mpd_info(mpd_url, access_token, content_id, video_token);
 }
 
+Result<std::string> WidevineCDM::build_pssh_from_kid(const std::string& kid_hex) {
+    return impl_->build_pssh_from_kid(kid_hex);
+}
+
 Result<std::vector<DRMKey>> WidevineCDM::get_license_keys(
     const std::string& license_url,
     const std::string& pssh_base64,
     const std::string& video_token,
     const std::string& content_id,
     const std::string& bearer_token,
-    const std::string& cookies) {
-    return impl_->get_license_keys(license_url, pssh_base64, video_token, content_id, bearer_token, cookies);
+    const std::string& cookies,
+    const std::filesystem::path& json_dir) {
+    return impl_->get_license_keys(license_url, pssh_base64, video_token, content_id, bearer_token, cookies, json_dir);
 }
 
 } // namespace crdl

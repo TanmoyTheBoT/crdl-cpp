@@ -35,7 +35,8 @@ public:
         const std::string& video_token,
         const std::string& content_id,
         const std::string& bearer_token,
-        const std::string& cookies = ""
+        const std::string& cookies,
+        const std::filesystem::path& json_dir
     );
 
     // Extract MPD information

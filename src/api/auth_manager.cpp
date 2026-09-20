@@ -1,6 +1,7 @@
 #include <crdl/api/auth_manager.h>
 #include <crdl/utils/logger.h>
 #include <crdl/utils/string_utils.h>
+#include <crdl/utils/json_utils.h>
 #include <nlohmann/json.hpp>
 #include <chrono>
 
@@ -54,6 +55,7 @@ Result<void> AuthManager::login(const std::string& username, const std::string& 
     // Parse response
     try {
         json resp_json = json::parse(response.value().body);
+        save_json(config_.json_dir, "login.json", resp_json);
 
         access_token_ = resp_json["access_token"];
         refresh_token_ = resp_json["refresh_token"];
@@ -115,6 +117,7 @@ Result<void> AuthManager::refresh_token() {
 
     try {
         json resp_json = json::parse(response.value().body);
+        save_json(config_.json_dir, "login_refreshed.json", resp_json);
 
         access_token_ = resp_json["access_token"];
         refresh_token_ = resp_json["refresh_token"];
