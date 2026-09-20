@@ -20,8 +20,8 @@ void print_usage(const char* program_name) {
     std::cout << "  -p, --password PASSWORD    Crunchyroll password\n\n";
     std::cout << "Content Selection:\n";
     std::cout << "  -e, --episode ID           Download episode by ID\n";
-    std::cout << "  -s, --season ID            Download season by ID\n";
-    std::cout << "  --series ID                Download series by ID\n\n";
+    std::cout << "  -S, --season ID            Download season by ID\n";
+    std::cout << "  -s, --series ID            Download series by ID\n\n";
     std::cout << "Options:\n";
     std::cout << "  -q, --quality QUALITY      Video quality (1080p, 720p, best, worst)\n";
     std::cout << "  -a, --audio LANGS          Audio languages (comma-separated, e.g., ja-JP,en-US)\n";
@@ -31,8 +31,8 @@ void print_usage(const char* program_name) {
     std::cout << "  --version                  Show version information\n\n";
     std::cout << "Examples:\n";
     std::cout << "  " << program_name << " -e EPISODE_ID -u user@email.com -p password\n";
-    std::cout << "  " << program_name << " -s SEASON_ID -q 720p -a \"ja-JP,en-US\"\n";
-    std::cout << "  " << program_name << " --series SERIES_ID --quality best\n";
+    std::cout << "  " << program_name << " -S SEASON_ID -q 720p -a \"ja-JP,en-US\"\n";
+    std::cout << "  " << program_name << " -s SERIES_ID --quality best\n";
 }
 
 struct Args {
@@ -67,9 +67,9 @@ Args parse_args(int argc, char* argv[]) {
             args.password = argv[++i];
         } else if ((arg == "-e" || arg == "--episode") && i + 1 < argc) {
             args.episode_id = argv[++i];
-        } else if ((arg == "-s" || arg == "--season") && i + 1 < argc) {
-            args.season_id = argv[++i];
-        } else if (arg == "--series" && i + 1 < argc) {
+        } else if (arg == "-S" || arg == "--season") {
+            if (i + 1 < argc) args.season_id = argv[++i];
+        } else if ((arg == "-s" || arg == "--series") && i + 1 < argc) {
             args.series_id = argv[++i];
         } else if ((arg == "-q" || arg == "--quality") && i + 1 < argc) {
             args.quality = argv[++i];
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
 
             std::cout << "✓ Series downloaded successfully\n";
         } else {
-            std::cerr << "Error: No content specified. Use -e, -s, or --series\n";
+            std::cerr << "Error: No content specified. Use -e, -S, or -s\n";
             print_usage(argv[0]);
             return 1;
         }
