@@ -7,10 +7,17 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
+#include <csignal>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+// Signal handler for Ctrl+C - triggers normal cleanup via destructors
+void signal_handler(int signal) {
+    std::cout << "\n\nInterrupted by user. Cleaning up...\n";
+    std::exit(130);  // CrunchyrollClient destructor cleans up active streams
+}
 
 void print_usage(const char* program_name) {
     std::cout << "CRDL - Crunchyroll Downloader v1.0.0\n\n";
@@ -101,6 +108,10 @@ int main(int argc, char* argv[]) {
         std::cout << "CRDL v1.0.0 - Professional C++ Edition\n";
         return 0;
     }
+
+    // Register signal handler for Ctrl+C
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
 
     try {
         // Initialize config

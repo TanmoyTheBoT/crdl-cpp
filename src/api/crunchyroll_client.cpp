@@ -29,6 +29,18 @@ public:
         http_client_.set_timeout(config.connect_timeout_sec);
     }
 
+    ~Impl() {
+        // ponytail: cleanup active streams on exit (Ctrl+C, error, normal exit)
+        if (!active_stream_guid_.empty() && !active_stream_token_.empty()) {
+            LOG_INFO("Cleaning up active stream in destructor");
+            try {
+                delete_stream(active_stream_guid_, active_stream_token_);
+            } catch (...) {
+                // silent fail on cleanup
+            }
+        }
+    }
+
     Result<void> login() {
         return auth_manager_.login(config_.username, config_.password);
     }
@@ -486,6 +498,10 @@ public:
 
         auto stream_info = video_result.value();
 
+        // Track active stream for cleanup on Ctrl+C
+        active_stream_guid_ = stream_guid;
+        active_stream_token_ = stream_info.video_token;
+
         // Get DRM keys BEFORE downloading
         std::vector<DRMKey> keys;
         if (!stream_info.pssh.empty()) {
@@ -524,6 +540,9 @@ public:
         if (!stream_info.video_token.empty()) {
             LOG_INFO("Cleaning up video stream");
             delete_stream(stream_guid, stream_info.video_token);
+            // Clear tracked stream after cleanup
+            active_stream_guid_.clear();
+            active_stream_token_.clear();
         }
 
         if (!video_file) {
@@ -839,6 +858,10 @@ private:
     Downloader downloader_;
     Muxer muxer_;
     WidevineCDM widevine_;
+
+    // Track active stream for cleanup on Ctrl+C or error
+    std::string active_stream_guid_;
+    std::string active_stream_token_;
 };
 
 // Public interface implementation
