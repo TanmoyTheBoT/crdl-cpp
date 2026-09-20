@@ -1,0 +1,350 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.0.1)'
+        required: true
+        type: string
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-windows:
+    name: Build Windows Release
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type:
+          - name: static
+            cmake_flag: -DCRDL_STATIC_BUILD=ON
+            artifact_name: crdl-windows-x64-static
+            description: "Static build - Single executable, no dependencies"
+          - name: dynamic
+            cmake_flag: -DCRDL_STATIC_BUILD=OFF
+            artifact_name: crdl-windows-x64-dynamic
+            description: "Dynamic build - Requires DLL dependencies"
+
+    steps:
+      - name: Checkout crdl-cpp
+        uses: actions/checkout@v4
+        with:
+          path: crdl-cpp
+          fetch-depth: 0
+
+      - name: Checkout widevine-cpp
+        uses: actions/checkout@v4
+        with:
+          repository: TanmoyTheBoT/cppwidevine
+          path: widevine-cpp
+          fetch-depth: 0
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'a42af01b72c28a8e1d7b48107b33e4f286a55ef6'
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configure CMake
+        working-directory: crdl-cpp
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/crdl-cpp/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            ${{ matrix.build_type.cmake_flag }} `
+            -DCRDL_BUILD_TESTS=OFF `
+            -DCRDL_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        working-directory: crdl-cpp
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target crdl -j
+
+      - name: Get version
+        id: version
+        working-directory: crdl-cpp
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ github.event.inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}"
+          }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+          # Get git hash
+          $hash = git rev-parse --short HEAD
+          echo "HASH=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Prepare static release package
+        if: matrix.build_type.name == 'static'
+        working-directory: crdl-cpp
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $hash = "${{ steps.version.outputs.HASH }}"
+          $pkgName = "${{ matrix.build_type.artifact_name }}-$version"
+
+          New-Item -ItemType Directory -Force -Path "release/$pkgName"
+
+          # Copy executable
+          Copy-Item "build/bin/Release/crdl.exe" "release/$pkgName/"
+
+          # Copy documentation
+          Copy-Item "README.md" "release/$pkgName/" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE" "release/$pkgName/" -ErrorAction SilentlyContinue
+
+          # Create version info
+          @"
+          CRDL - Crunchyroll Downloader
+          Version: $version+$hash
+          Build: Static (Single Executable)
+          Platform: Windows x64
+          Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+
+          No additional dependencies required.
+          "@ | Out-File -FilePath "release/$pkgName/VERSION.txt" -Encoding utf8
+
+          # Create quick start guide
+          @"
+          Quick Start Guide
+          =================
+
+          1. Extract all files to a folder
+          2. Open Command Prompt or PowerShell in that folder
+          3. Run: crdl.exe --help
+
+          Usage Examples:
+          ---------------
+          Download an episode:
+            crdl.exe -e EPISODE_ID -u your@email.com -p password
+
+          Download a season:
+            crdl.exe -S SEASON_ID -q 1080p
+
+          Download entire series:
+            crdl.exe -s SERIES_ID
+
+          For more information, see README.md
+          "@ | Out-File -FilePath "release/$pkgName/QUICKSTART.txt" -Encoding utf8
+
+          # Create archive
+          Compress-Archive -Path "release/$pkgName/*" -DestinationPath "release/$pkgName.zip" -CompressionLevel Optimal
+
+          echo "PACKAGE_NAME=$pkgName" >> $env:GITHUB_OUTPUT
+
+      - name: Prepare dynamic release package
+        if: matrix.build_type.name == 'dynamic'
+        working-directory: crdl-cpp
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $hash = "${{ steps.version.outputs.HASH }}"
+          $pkgName = "${{ matrix.build_type.artifact_name }}-$version"
+
+          New-Item -ItemType Directory -Force -Path "release/$pkgName/bin"
+
+          # Copy executable
+          Copy-Item "build/bin/Release/crdl.exe" "release/$pkgName/bin/"
+
+          # Copy DLL dependencies
+          $dllPaths = @(
+            "build/bin/Release/*.dll",
+            "build/_deps/*/Release/*.dll",
+            "build/*/Release/*.dll"
+          )
+
+          foreach ($path in $dllPaths) {
+            Get-ChildItem -Path $path -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName "release/$pkgName/bin/" -ErrorAction SilentlyContinue
+            }
+          }
+
+          # Copy vcpkg DLLs
+          $vcpkgBin = "vcpkg_installed/x64-windows/bin"
+          if (Test-Path $vcpkgBin) {
+            Get-ChildItem "$vcpkgBin/*.dll" | ForEach-Object {
+              Copy-Item $_.FullName "release/$pkgName/bin/"
+            }
+          }
+
+          # Copy documentation
+          Copy-Item "README.md" "release/$pkgName/" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE" "release/$pkgName/" -ErrorAction SilentlyContinue
+
+          # Create version info
+          @"
+          CRDL - Crunchyroll Downloader
+          Version: $version+$hash
+          Build: Dynamic (With DLL Dependencies)
+          Platform: Windows x64
+          Build Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+
+          Required DLLs are included in the bin/ folder.
+          "@ | Out-File -FilePath "release/$pkgName/VERSION.txt" -Encoding utf8
+
+          # Create quick start guide
+          @"
+          Quick Start Guide
+          =================
+
+          1. Extract all files to a folder
+          2. Open Command Prompt or PowerShell in that folder
+          3. Run: bin\crdl.exe --help
+
+          Important: Keep all DLL files in the bin\ folder alongside crdl.exe
+
+          Usage Examples:
+          ---------------
+          Download an episode:
+            bin\crdl.exe -e EPISODE_ID -u your@email.com -p password
+
+          Download a season:
+            bin\crdl.exe -S SEASON_ID -q 1080p
+
+          Download entire series:
+            bin\crdl.exe -s SERIES_ID
+
+          For more information, see README.md
+          "@ | Out-File -FilePath "release/$pkgName/QUICKSTART.txt" -Encoding utf8
+
+          # List included DLLs
+          $dlls = Get-ChildItem "release/$pkgName/bin/*.dll" | Select-Object -ExpandProperty Name
+          @"
+          Included Dependencies
+          =====================
+
+          The following DLL files are included:
+
+          $($dlls -join "`n")
+
+          All dependencies must remain in the bin\ folder for the application to work.
+          "@ | Out-File -FilePath "release/$pkgName/DEPENDENCIES.txt" -Encoding utf8
+
+          # Create archive
+          Compress-Archive -Path "release/$pkgName/*" -DestinationPath "release/$pkgName.zip" -CompressionLevel Optimal
+
+          echo "PACKAGE_NAME=$pkgName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build_type.artifact_name }}
+          path: crdl-cpp/release/*.zip
+          retention-days: 7
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout crdl-cpp
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## CRDL - Crunchyroll Downloader ${{ steps.version.outputs.VERSION }}
+
+          ### 📦 Download Options
+
+          Choose the build that best suits your needs:
+
+          #### 🎯 **Static Build (Recommended for most users)**
+          - **File**: `crdl-windows-x64-static-*.zip`
+          - ✅ Single executable file
+          - ✅ No dependencies required
+          - ✅ Larger file size (~20-30 MB)
+          - ✅ Easier to distribute and run
+
+          #### ⚡ **Dynamic Build (Advanced users)**
+          - **File**: `crdl-windows-x64-dynamic-*.zip`
+          - ⚡ Smaller executable size
+          - ⚡ Requires DLL dependencies (included)
+          - ⚡ DLLs must stay in bin/ folder
+
+          ### 📋 System Requirements
+
+          - **OS**: Windows 10/11 (64-bit)
+          - **Additional Tools**: N_m3u8DL-RE and mkvmerge must be in PATH
+
+          ### 🚀 Quick Start
+
+          1. Download your preferred build
+          2. Extract the ZIP file
+          3. Open terminal in extracted folder
+          4. Run `crdl.exe --help` (static) or `bin\crdl.exe --help` (dynamic)
+
+          ### 📝 Usage Examples
+
+          ```bash
+          # Download episode
+          crdl.exe -e EPISODE_ID -u your@email.com -p password
+
+          # Download season in 720p
+          crdl.exe -S SEASON_ID -q 720p
+
+          # Download entire series
+          crdl.exe -s SERIES_ID
+          ```
+
+          ### 🔧 Installation
+
+          **Static Build:**
+          - Extract and run `crdl.exe` directly
+
+          **Dynamic Build:**
+          - Extract all files
+          - Keep DLLs in bin/ folder
+          - Run `bin\crdl.exe`
+
+          ### 📖 Documentation
+
+          See README.md in the package for full documentation.
+
+          ---
+
+          **Build Information:**
+          - Commit: `$(git rev-parse --short HEAD)`
+          - Build Date: `$(date -u +'%Y-%m-%d %H:%M:%S UTC')`
+          EOF
+
+          echo "Generated release notes"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: CRDL ${{ steps.version.outputs.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
