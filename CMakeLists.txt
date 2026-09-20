@@ -37,7 +37,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Add widevine-cpp
-add_subdirectory(../widevine-cpp ${CMAKE_BINARY_DIR}/widevine-cpp)
+add_subdirectory(../widevine-cpp ${CMAKE_BINARY_DIR}/widevine-cpp EXCLUDE_FROM_ALL)
 
 # Find dependencies
 find_package(CURL REQUIRED)

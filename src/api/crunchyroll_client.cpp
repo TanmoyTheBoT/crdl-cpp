@@ -88,6 +88,8 @@ public:
     }
 
     Result<StreamInfo> get_streams(const std::string& episode_id, const std::string& guid) {
+        LOG_INFO("get_streams called with episode_id={}, guid={}", episode_id, guid);
+
         auto token_check = auth_manager_.ensure_valid_token();
         if (!token_check) return Result<StreamInfo>(token_check.error(), token_check.error_message());
 
@@ -180,11 +182,11 @@ public:
                 }
 
                 // Parse MPD for DRM info (pass auth headers)
-                // Note: guid is passed for X-Cr-Content-Id header (not episode_id)
+                // Use guid directly as content_id - it's the stream/version guid, not episode_id
                 auto drm_result = widevine_.extract_mpd_info(
                     info.mpd_url,
                     auth_manager_.get_access_token(),
-                    guid,  // Use GUID for content ID, not episode_id
+                    guid,  // Use guid (stream version guid) as content_id
                     info.video_token
                 );
                 if (drm_result) {
@@ -243,9 +245,11 @@ public:
 
         // Get primary audio version GUID (use episode_id if no versions)
         std::string stream_guid = episode_id;
+        LOG_INFO("Episode has {} versions", episode.versions.size());
         if (!episode.versions.empty()) {
             // Find original version or use first one
             for (const auto& ver : episode.versions) {
+                LOG_INFO("Version: guid={}, is_original={}", ver.guid, ver.is_original);
                 if (ver.is_original) {
                     stream_guid = ver.guid;
                     break;
@@ -255,6 +259,7 @@ public:
                 stream_guid = episode.versions[0].guid;
             }
         }
+        LOG_INFO("Using stream_guid: {}", stream_guid);
 
         // Download video
         LOG_INFO("Downloading video track");
@@ -285,6 +290,9 @@ public:
                 LOG_INFO("DRM keys acquired, ready to download");
             } else {
                 LOG_ERROR("Failed to get DRM keys: {}", keys_result.error_message());
+                // Clean up active stream on DRM failure
+                LOG_INFO("Cleaning up active stream after DRM key failure");
+                delete_stream(stream_guid, stream_info.video_token);
                 return Result<void>(ErrorCode::DRMError, "Could not acquire decryption keys");
             }
         } else {

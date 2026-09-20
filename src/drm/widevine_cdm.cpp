@@ -264,6 +264,30 @@ public:
             // Open session
             auto session_id = cdm.open_session();
 
+            // RAII wrapper to ensure session cleanup
+            struct SessionGuard {
+                widevine::CDM& cdm;
+                std::vector<uint8_t> session_id;
+                bool active = true;
+
+                SessionGuard(widevine::CDM& c, std::vector<uint8_t> sid)
+                    : cdm(c), session_id(std::move(sid)) {}
+
+                ~SessionGuard() {
+                    if (active) {
+                        try {
+                            cdm.close_session(session_id);
+                        } catch (...) {
+                            // Suppress exceptions in destructor
+                        }
+                    }
+                }
+
+                void release() { active = false; }
+            };
+
+            SessionGuard guard(cdm, session_id);
+
             // Parse PSSH
             auto pssh = widevine::PSSH::from_base64(pssh_base64);
 
@@ -279,27 +303,57 @@ public:
             HttpClient client;
             client.add_header("Authorization", "Bearer " + bearer_token);
             client.add_header("User-Agent", "Crunchyroll/ANDROIDTV/3.70.0_22358 (Android 12; en-US; SHIELD Android TV Build/SR1A.220624.014)");
-            client.add_header("Content-Type", "application/octet-stream");
+            client.add_header("Accept", "*/*");
+            client.add_header("Accept-Encoding", "gzip");
+            client.add_header("Connection", "Keep-Alive");
             client.add_header("X-Cr-Content-Id", content_id);
             client.add_header("X-Cr-Video-Token", video_token);
 
-            auto response = client.post(
-                license_url,
-                std::string(challenge.begin(), challenge.end())
-            );
+            LOG_INFO("License request headers:");
+            LOG_INFO("  Authorization: Bearer {}...", bearer_token.substr(0, 20));
+            LOG_INFO("  X-Cr-Content-Id: {}", content_id);
+            LOG_INFO("  X-Cr-Video-Token: {}...", video_token.substr(0, 20));
+            LOG_INFO("  Challenge size: {} bytes", challenge.size());
+
+            // Use post_binary to send raw bytes with application/octet-stream
+            auto response = client.post_binary(license_url, challenge);
 
             if (!response || !response.value().is_success()) {
+                int status_code = response ? response.value().status_code : 0;
+                std::string error_body = response ? response.value().body.substr(0, 200) : "no response";
+                LOG_ERROR("License request failed: HTTP {}, body: {}", status_code, error_body);
                 return Result<std::vector<DRMKey>>(
                     ErrorCode::DRMError,
-                    "License request failed"
+                    "License request failed: HTTP " + std::to_string(status_code)
                 );
             }
 
-            // Parse license
-            std::vector<uint8_t> license_data(
-                response.value().body.begin(),
-                response.value().body.end()
-            );
+            // Parse license response - Crunchyroll returns JSON with base64-encoded license
+            std::vector<uint8_t> license_data;
+            try {
+                json response_json = json::parse(response.value().body);
+                if (response_json.contains("license")) {
+                    // Decode base64 license
+                    std::string license_b64 = response_json["license"];
+                    auto decoded = string_utils::base64_decode(license_b64);
+                    license_data = std::vector<uint8_t>(decoded.begin(), decoded.end());
+                    LOG_INFO("Parsed JSON license response, decoded {} bytes", license_data.size());
+                } else {
+                    LOG_WARN("No 'license' field in JSON response, using raw body");
+                    license_data = std::vector<uint8_t>(
+                        response.value().body.begin(),
+                        response.value().body.end()
+                    );
+                }
+            } catch (const json::exception& e) {
+                // Not JSON, use raw response
+                LOG_INFO("License response is not JSON, using raw body");
+                license_data = std::vector<uint8_t>(
+                    response.value().body.begin(),
+                    response.value().body.end()
+                );
+            }
+
             cdm.parse_license(session_id, license_data);
 
             // Extract keys
@@ -319,8 +373,6 @@ public:
                 LOG_INFO("  Key: {}", key.key);
                 LOG_INFO("  Type: {}", key.type);
             }
-
-            cdm.close_session(session_id);
 
             LOG_INFO("Successfully retrieved {} decryption key(s)", keys.size());
             return Result<std::vector<DRMKey>>(keys);
