@@ -761,9 +761,9 @@ public:
 
         LOG_INFO("Found {} unique seasons in series", seasons.size());
 
-        // Get episode counts for each season
+        // Get episode information for each season
         int total_episodes = 0;
-        std::vector<int> episode_counts;
+        std::vector<std::vector<Episode>> all_episodes;
 
         std::cout << "\n=== Series: " << series.title << " ===" << std::endl;
         std::cout << "Total unique seasons: " << seasons.size() << "\n" << std::endl;
@@ -772,15 +772,23 @@ public:
             const auto& season = seasons[i];
             auto episodes_result = get_episodes(season.id);
 
-            int ep_count = 0;
+            std::vector<Episode> episodes;
             if (episodes_result) {
-                ep_count = episodes_result.value().size();
-                total_episodes += ep_count;
+                episodes = episodes_result.value();
+                total_episodes += episodes.size();
+                all_episodes.push_back(episodes);
             }
-            episode_counts.push_back(ep_count);
 
             std::cout << (i + 1) << ". Season " << season.season_number << ": "
-                      << season.title << " (" << ep_count << " episodes)" << std::endl;
+                      << season.title << " (" << episodes.size() << " episodes)" << std::endl;
+
+            // Show episode details
+            std::cout << "   Episodes:" << std::endl;
+            for (size_t j = 0; j < episodes.size(); ++j) {
+                const auto& ep = episodes[j];
+                std::cout << "   " << (j + 1) << ". Episode " << ep.episode_number << ": "
+                          << ep.title << " (ID: " << ep.id << ")" << std::endl;
+            }
         }
 
         std::cout << "\nFound " << total_episodes << " total episodes across all seasons" << std::endl;
