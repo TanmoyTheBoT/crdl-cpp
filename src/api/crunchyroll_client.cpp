@@ -32,6 +32,150 @@ public:
         return auth_manager_.login(config_.username, config_.password);
     }
 
+    Result<Series> get_series(const std::string& series_id) {
+        auto token_check = auth_manager_.ensure_valid_token();
+        if (!token_check) return Result<Series>(token_check.error(), token_check.error_message());
+
+        auto cms_result = get_cms_data();
+        if (!cms_result) return Result<Series>(cms_result.error(), cms_result.error_message());
+
+        auto cms = cms_result.value();
+
+        std::string url = "https://beta-api.crunchyroll.com/cms/v2" + cms["bucket"].get<std::string>()
+                         + "/series/" + series_id;
+
+        http_client_.clear_headers();
+        http_client_.add_header("Authorization", "Bearer " + auth_manager_.get_access_token());
+
+        url += "?Policy=" + string_utils::url_encode(cms["policy"]);
+        url += "&Signature=" + string_utils::url_encode(cms["signature"]);
+        url += "&Key-Pair-Id=" + string_utils::url_encode(cms["key_pair_id"]);
+        url += "&locale=en-US";
+
+        auto response = http_client_.get(url);
+        if (!response || !response.value().is_success()) {
+            return Result<Series>(ErrorCode::NetworkError, "Failed to get series");
+        }
+
+        try {
+            json j = json::parse(response.value().body);
+            save_json(config_.json_dir, "series.json", j);
+
+            Series series;
+            series.id = j.value("id", "");
+            series.title = j.value("title", "");
+            series.description = j.value("description", "");
+
+            LOG_INFO("Series retrieved: {}", series.title);
+            return Result<Series>(series);
+
+        } catch (const json::exception& e) {
+            return Result<Series>(ErrorCode::Unknown, std::string("Parse error: ") + e.what());
+        }
+    }
+
+    Result<std::vector<Season>> get_seasons(const std::string& series_id) {
+        auto token_check = auth_manager_.ensure_valid_token();
+        if (!token_check) return Result<std::vector<Season>>(token_check.error(), token_check.error_message());
+
+        auto cms_result = get_cms_data();
+        if (!cms_result) return Result<std::vector<Season>>(cms_result.error(), cms_result.error_message());
+
+        auto cms = cms_result.value();
+
+        std::string url = "https://beta-api.crunchyroll.com/cms/v2" + cms["bucket"].get<std::string>()
+                         + "/seasons";
+
+        http_client_.clear_headers();
+        http_client_.add_header("Authorization", "Bearer " + auth_manager_.get_access_token());
+
+        url += "?Policy=" + string_utils::url_encode(cms["policy"]);
+        url += "&Signature=" + string_utils::url_encode(cms["signature"]);
+        url += "&Key-Pair-Id=" + string_utils::url_encode(cms["key_pair_id"]);
+        url += "&locale=en-US";
+        url += "&series_id=" + string_utils::url_encode(series_id);
+
+        auto response = http_client_.get(url);
+        if (!response || !response.value().is_success()) {
+            return Result<std::vector<Season>>(ErrorCode::NetworkError, "Failed to get seasons");
+        }
+
+        try {
+            json j = json::parse(response.value().body);
+            save_json(config_.json_dir, "seasons.json", j);
+
+            std::vector<Season> seasons;
+            if (j.contains("items") && j["items"].is_array()) {
+                for (const auto& item : j["items"]) {
+                    Season season;
+                    season.id = item.value("id", "");
+                    season.title = item.value("title", "");
+                    season.season_number = item.value("season_number", 1);
+                    season.series_id = item.value("series_id", "");
+                    seasons.push_back(season);
+                }
+            }
+
+            LOG_INFO("Retrieved {} seasons", seasons.size());
+            return Result<std::vector<Season>>(seasons);
+
+        } catch (const json::exception& e) {
+            return Result<std::vector<Season>>(ErrorCode::Unknown, std::string("Parse error: ") + e.what());
+        }
+    }
+
+    Result<std::vector<Episode>> get_episodes(const std::string& season_id) {
+        auto token_check = auth_manager_.ensure_valid_token();
+        if (!token_check) return Result<std::vector<Episode>>(token_check.error(), token_check.error_message());
+
+        auto cms_result = get_cms_data();
+        if (!cms_result) return Result<std::vector<Episode>>(cms_result.error(), cms_result.error_message());
+
+        auto cms = cms_result.value();
+
+        std::string url = "https://beta-api.crunchyroll.com/cms/v2" + cms["bucket"].get<std::string>()
+                         + "/episodes";
+
+        http_client_.clear_headers();
+        http_client_.add_header("Authorization", "Bearer " + auth_manager_.get_access_token());
+
+        url += "?Policy=" + string_utils::url_encode(cms["policy"]);
+        url += "&Signature=" + string_utils::url_encode(cms["signature"]);
+        url += "&Key-Pair-Id=" + string_utils::url_encode(cms["key_pair_id"]);
+        url += "&locale=en-US";
+        url += "&season_id=" + string_utils::url_encode(season_id);
+
+        auto response = http_client_.get(url);
+        if (!response || !response.value().is_success()) {
+            return Result<std::vector<Episode>>(ErrorCode::NetworkError, "Failed to get episodes");
+        }
+
+        try {
+            json j = json::parse(response.value().body);
+            save_json(config_.json_dir, "episodes.json", j);
+
+            std::vector<Episode> episodes;
+            if (j.contains("items") && j["items"].is_array()) {
+                for (const auto& item : j["items"]) {
+                    Episode ep;
+                    ep.id = item.value("id", "");
+                    ep.title = item.value("title", "");
+                    ep.series_id = item.value("series_id", "");
+                    ep.season_id = item.value("season_id", "");
+                    ep.season_number = item.value("season_number", 1);
+                    ep.episode_number = item.value("episode_number", 1);
+                    episodes.push_back(ep);
+                }
+            }
+
+            LOG_INFO("Retrieved {} episodes", episodes.size());
+            return Result<std::vector<Episode>>(episodes);
+
+        } catch (const json::exception& e) {
+            return Result<std::vector<Episode>>(ErrorCode::Unknown, std::string("Parse error: ") + e.what());
+        }
+    }
+
     Result<Episode> get_episode(const std::string& episode_id) {
         auto token_check = auth_manager_.ensure_valid_token();
         if (!token_check) return Result<Episode>(token_check.error(), token_check.error_message());
@@ -472,6 +616,116 @@ public:
         return Result<void>(ErrorCode::Success);
     }
 
+    Result<void> download_season(const std::string& season_id,
+                                  const std::vector<std::string>& audio_langs) {
+        LOG_INFO("Starting season download: {}", season_id);
+
+        // Get episodes list
+        auto episodes_result = get_episodes(season_id);
+        if (!episodes_result) {
+            return Result<void>(episodes_result.error(), episodes_result.error_message());
+        }
+
+        auto episodes = episodes_result.value();
+        if (episodes.empty()) {
+            LOG_WARN("No episodes found for season {}", season_id);
+            return Result<void>(ErrorCode::Unknown, "No episodes found");
+        }
+
+        LOG_INFO("Found {} episodes in season", episodes.size());
+
+        int success_count = 0;
+        int fail_count = 0;
+
+        for (size_t i = 0; i < episodes.size(); ++i) {
+            const auto& ep = episodes[i];
+            LOG_INFO("Processing episode {}/{}: {} ({})", i + 1, episodes.size(), ep.title, ep.id);
+
+            auto result = download_episode(ep.id, audio_langs);
+            if (result) {
+                success_count++;
+                LOG_INFO("Successfully downloaded episode {}/{}", i + 1, episodes.size());
+            } else {
+                fail_count++;
+                LOG_ERROR("Failed to download episode {}: {}", ep.id, result.error_message());
+            }
+
+            // Delay between episodes (except after the last one)
+            if (i < episodes.size() - 1) {
+                LOG_INFO("Waiting 3 seconds before next episode...");
+                std::this_thread::sleep_for(std::chrono::seconds(3));
+            }
+        }
+
+        LOG_INFO("Season download complete: {} succeeded, {} failed", success_count, fail_count);
+
+        if (fail_count > 0) {
+            return Result<void>(ErrorCode::DownloadFailed,
+                std::to_string(fail_count) + " episode(s) failed to download");
+        }
+
+        return Result<void>(ErrorCode::Success);
+    }
+
+    Result<void> download_series(const std::string& series_id,
+                                  const std::vector<std::string>& audio_langs) {
+        LOG_INFO("Starting series download: {}", series_id);
+
+        // Get series info
+        auto series_result = get_series(series_id);
+        if (!series_result) {
+            return Result<void>(series_result.error(), series_result.error_message());
+        }
+
+        auto series = series_result.value();
+        LOG_INFO("Series: {}", series.title);
+
+        // Get seasons
+        auto seasons_result = get_seasons(series_id);
+        if (!seasons_result) {
+            return Result<void>(seasons_result.error(), seasons_result.error_message());
+        }
+
+        auto seasons = seasons_result.value();
+        if (seasons.empty()) {
+            LOG_WARN("No seasons found for series {}", series_id);
+            return Result<void>(ErrorCode::Unknown, "No seasons found");
+        }
+
+        LOG_INFO("Found {} seasons in series", seasons.size());
+
+        int total_fail = 0;
+
+        for (size_t i = 0; i < seasons.size(); ++i) {
+            const auto& season = seasons[i];
+            LOG_INFO("Processing season {}/{}: {} (Season {})",
+                     i + 1, seasons.size(), season.title, season.season_number);
+
+            auto result = download_season(season.id, audio_langs);
+            if (result) {
+                LOG_INFO("Successfully downloaded season {}/{}", i + 1, seasons.size());
+            } else {
+                LOG_ERROR("Failed to download season {}: {}", season.id, result.error_message());
+                total_fail++;
+            }
+
+            // Delay between seasons (except after the last one)
+            if (i < seasons.size() - 1) {
+                LOG_INFO("Waiting 5 seconds before next season...");
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+            }
+        }
+
+        LOG_INFO("Series download complete");
+
+        if (total_fail > 0) {
+            return Result<void>(ErrorCode::DownloadFailed,
+                std::to_string(total_fail) + " season(s) failed to download");
+        }
+
+        return Result<void>(ErrorCode::Success);
+    }
+
 private:
     Result<json> get_cms_data() {
         auto token_check = auth_manager_.ensure_valid_token();
@@ -517,18 +771,30 @@ Result<void> CrunchyrollClient::download_episode(const std::string& episode_id,
     return impl_->download_episode(episode_id, audio_langs);
 }
 
+Result<Series> CrunchyrollClient::get_series(const std::string& series_id) {
+    return impl_->get_series(series_id);
+}
+
+Result<std::vector<Season>> CrunchyrollClient::get_seasons(const std::string& series_id) {
+    return impl_->get_seasons(series_id);
+}
+
+Result<std::vector<Episode>> CrunchyrollClient::get_episodes(const std::string& season_id) {
+    return impl_->get_episodes(season_id);
+}
+
 Result<Episode> CrunchyrollClient::get_episode(const std::string& episode_id) {
     return impl_->get_episode(episode_id);
 }
 
 Result<void> CrunchyrollClient::download_season(const std::string& season_id,
                                                 const std::vector<std::string>& audio_langs) {
-    return Result<void>(ErrorCode::Unknown, "download_season not implemented yet");
+    return impl_->download_season(season_id, audio_langs);
 }
 
 Result<void> CrunchyrollClient::download_series(const std::string& series_id,
                                                 const std::vector<std::string>& audio_langs) {
-    return Result<void>(ErrorCode::Unknown, "download_series not implemented yet");
+    return impl_->download_series(series_id, audio_langs);
 }
 
 EpisodeMetadata Episode::to_metadata() const {
