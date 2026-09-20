@@ -1,0 +1,21 @@
+#pragma once
+
+#define CRDL_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define CRDL_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define CRDL_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define CRDL_VERSION_STRING "@PROJECT_VERSION@"
+#define CRDL_VERSION_FULL "@PROJECT_VERSION@+@GIT_COMMIT_HASH@"
+
+namespace crdl {
+
+constexpr int VERSION_MAJOR = CRDL_VERSION_MAJOR;
+constexpr int VERSION_MINOR = CRDL_VERSION_MINOR;
+constexpr int VERSION_PATCH = CRDL_VERSION_PATCH;
+constexpr const char* VERSION_STRING = CRDL_VERSION_STRING;
+constexpr const char* VERSION_FULL = CRDL_VERSION_FULL;
+
+inline const char* get_version() {
+    return VERSION_FULL;
+}
+
+} // namespace crdl

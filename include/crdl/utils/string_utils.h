@@ -59,14 +59,17 @@ inline std::string replace_all(std::string str, const std::string& from, const s
 inline std::string sanitize_filename(const std::string& filename) {
     std::string result = filename;
 
-    // Replace invalid characters
+    // Replace invalid characters with dashes (matching Python version)
     const char* invalid_chars = "\\/*?:\"<>|";
     for (char c : std::string(invalid_chars)) {
         result = replace_all(result, std::string(1, c), "-");
     }
 
-    // Replace spaces with dots
+    // Replace spaces and remaining special chars
     result = replace_all(result, " ", ".");
+    result = replace_all(result, ":", "");
+    result = replace_all(result, "/", "-");
+    result = replace_all(result, "-", ".");
 
     // Remove apostrophes
     result = replace_all(result, "'", "");
@@ -75,14 +78,6 @@ inline std::string sanitize_filename(const std::string& filename) {
     // Remove multiple dots
     while (result.find("..") != std::string::npos) {
         result = replace_all(result, "..", ".");
-    }
-
-    // Trim dots and dashes from ends
-    while (!result.empty() && (result.front() == '.' || result.front() == '-')) {
-        result.erase(result.begin());
-    }
-    while (!result.empty() && (result.back() == '.' || result.back() == '-')) {
-        result.pop_back();
     }
 
     return result;

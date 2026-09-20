@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(crdl VERSION 1.0.0 LANGUAGES CXX)
+project(crdl VERSION 0.0.1 LANGUAGES CXX)
 
 # C++17 required
 set(CMAKE_CXX_STANDARD 17)
@@ -13,6 +13,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(CRDL_BUILD_TESTS "Build tests" ON)
 option(CRDL_BUILD_EXAMPLES "Build examples" ON)
 option(CRDL_ENABLE_LOGGING "Enable detailed logging" ON)
+option(CRDL_STATIC_BUILD "Build static executable" OFF)
+
+# Static linking settings
+if(CRDL_STATIC_BUILD)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(VCPKG_TARGET_TRIPLET "x64-windows-static")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".a")
+    add_compile_definitions(CURL_STATICLIB)
+
+    if(MSVC)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /INCREMENTAL:NO")
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
+    endif()
+endif()
 
 # Platform detection
 if(WIN32)
@@ -35,6 +49,27 @@ endif()
 
 # Include CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Get Git commit hash for version
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+else()
+    set(GIT_COMMIT_HASH "unknown")
+endif()
+
+# Configure version header
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/crdl/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/crdl/version.h
+    @ONLY
+)
 
 # Add widevine-cpp
 add_subdirectory(../widevine-cpp ${CMAKE_BINARY_DIR}/widevine-cpp EXCLUDE_FROM_ALL)
@@ -74,6 +109,7 @@ endif()
 # Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}/include
     ${CURL_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIR}
 )

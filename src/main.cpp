@@ -3,6 +3,7 @@
 #include <crdl/utils/logger.h>
 #include <crdl/utils/string_utils.h>
 #include <crdl/media/downloader.h>
+#include <crdl/version.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
@@ -20,7 +21,7 @@ void signal_handler(int signal) {
 }
 
 void print_usage(const char* program_name) {
-    std::cout << "CRDL - Crunchyroll Downloader v1.0.0\n\n";
+    std::cout << "CRDL - Crunchyroll Downloader v" << crdl::VERSION_STRING << "\n\n";
     std::cout << "Usage: " << program_name << " [OPTIONS]\n\n";
     std::cout << "Authentication:\n";
     std::cout << "  -u, --username USERNAME    Crunchyroll username\n";
@@ -105,7 +106,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (args.show_version) {
-        std::cout << "CRDL v1.0.0 - Professional C++ Edition\n";
+        std::cout << "CRDL v" << crdl::VERSION_FULL << " - Professional C++ Edition\n";
         return 0;
     }
 
