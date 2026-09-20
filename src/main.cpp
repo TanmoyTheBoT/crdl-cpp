@@ -41,7 +41,7 @@ struct Args {
     std::string episode_id;
     std::string season_id;
     std::string series_id;
-    std::string quality{"best"};
+    std::string quality{"1080p"};
     std::string audio_langs{"ja-JP"};
     std::string output_dir;
     bool verbose{false};
