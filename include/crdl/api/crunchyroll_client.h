@@ -75,6 +75,7 @@ public:
     std::string id;
     std::string title;
     std::string series_id;
+    std::string series_title;
     std::string season_id;
     int season_number{1};
     int episode_number{1};

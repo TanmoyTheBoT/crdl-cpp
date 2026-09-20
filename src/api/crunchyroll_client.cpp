@@ -80,6 +80,28 @@ public:
                 }
             }
 
+            // Fetch series title if we have series_id
+            if (!ep.series_id.empty()) {
+                std::string series_url = "https://beta-api.crunchyroll.com/cms/v2" + cms["bucket"].get<std::string>()
+                                       + "/series/" + ep.series_id;
+
+                std::string series_params = "?Policy=" + string_utils::url_encode(cms["policy"]);
+                series_params += "&Signature=" + string_utils::url_encode(cms["signature"]);
+                series_params += "&Key-Pair-Id=" + string_utils::url_encode(cms["key_pair_id"]);
+                series_params += "&locale=en-US";
+
+                auto series_response = http_client_.get(series_url + series_params);
+                if (series_response && series_response.value().is_success()) {
+                    try {
+                        json series_json = json::parse(series_response.value().body);
+                        ep.series_title = series_json.value("title", "");
+                        LOG_INFO("Series title: {}", ep.series_title);
+                    } catch (...) {
+                        LOG_WARN("Failed to parse series info");
+                    }
+                }
+            }
+
             return Result<Episode>(ep);
 
         } catch (const json::exception& e) {
@@ -506,6 +528,7 @@ EpisodeMetadata Episode::to_metadata() const {
     EpisodeMetadata meta;
     meta.id = id;
     meta.title = title;
+    meta.series_title = series_title;
     meta.series_id = series_id;
     meta.season_number = season_number;
     meta.episode_number = episode_number;
