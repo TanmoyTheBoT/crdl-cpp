@@ -57,7 +57,7 @@ jobs:
         run: |
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/crdl-cpp/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake `
             ${{ matrix.build_type.cmake_flag }} `
             -DCRDL_BUILD_TESTS=OFF `
             -DCRDL_BUILD_EXAMPLES=OFF
