@@ -52,16 +52,22 @@ jobs:
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
 
+      - name: Set triplet
+        id: triplet
+        shell: pwsh
+        run: |
+          $triplet = if ("${{ matrix.build_type.name }}" -eq "static") { "x64-windows-static" } else { "x64-windows" }
+          echo "VCPKG_TRIPLET=$triplet" >> $env:GITHUB_OUTPUT
+
       - name: Configure CMake
         working-directory: crdl-cpp
         env:
           VCPKG_BINARY_SOURCES: 'clear'
         run: |
-          $triplet = if ("${{ matrix.build_type.name }}" -eq "static") { "x64-windows-static" } else { "x64-windows" }
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
             -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/crdl-cpp/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=$triplet `
+            -DVCPKG_TARGET_TRIPLET=${{ steps.triplet.outputs.VCPKG_TRIPLET }} `
             -DVCPKG_MANIFEST_MODE=ON `
             ${{ matrix.build_type.cmake_flag }} `
             -DCRDL_BUILD_TESTS=OFF `
