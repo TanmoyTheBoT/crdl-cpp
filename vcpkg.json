@@ -1,0 +1,11 @@
+{
+  "name": "crdl",
+  "version": "0.0.1",
+  "dependencies": [
+    "curl",
+    "openssl",
+    "protobuf",
+    "nlohmann-json",
+    "spdlog"
+  ]
+}
