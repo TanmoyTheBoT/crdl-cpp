@@ -48,7 +48,7 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: '${{ github.workspace }}/crdl-cpp/vcpkg'
-          vcpkgGitCommitId: 'c8696863d371ab7f46e213d8f5ca923c4aef2a00'
+          vcpkgGitCommitId: 'f7423ee180c4b7f40d43402c2feb3859161ef625'
 
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
