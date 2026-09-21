@@ -49,12 +49,16 @@ jobs:
         with:
           vcpkgDirectory: '${{ github.workspace }}/crdl-cpp/vcpkg'
           vcpkgGitCommitId: 'a42af01b72c28a8e1d7b48107b33e4f286a55ef6'
+        env:
+          VCPKG_BINARY_SOURCES: 'clear'
 
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
 
       - name: Configure CMake
         working-directory: crdl-cpp
+        env:
+          VCPKG_BINARY_SOURCES: 'clear'
         run: |
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
