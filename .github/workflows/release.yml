@@ -56,12 +56,12 @@ jobs:
         working-directory: crdl-cpp
         env:
           VCPKG_BINARY_SOURCES: 'clear'
-          VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
         run: |
+          $triplet = if ("${{ matrix.build_type.name }}" -eq "static") { "x64-windows-static" } else { "x64-windows" }
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
             -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/crdl-cpp/vcpkg/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md `
+            -DVCPKG_TARGET_TRIPLET=$triplet `
             -DVCPKG_MANIFEST_MODE=ON `
             ${{ matrix.build_type.cmake_flag }} `
             -DCRDL_BUILD_TESTS=OFF `
