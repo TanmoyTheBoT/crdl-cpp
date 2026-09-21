@@ -18,7 +18,6 @@ option(CRDL_STATIC_BUILD "Build static executable" OFF)
 # Static linking settings
 if(CRDL_STATIC_BUILD)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static")
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".a")
     add_compile_definitions(CURL_STATICLIB)
 
@@ -79,6 +78,7 @@ find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Protobuf REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # Try to find packages from vcpkg first
 find_package(nlohmann_json CONFIG QUIET)

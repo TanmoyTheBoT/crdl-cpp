@@ -32,6 +32,7 @@ target_link_libraries(crdl_core
         ${CURL_LIBRARIES}
         OpenSSL::SSL
         OpenSSL::Crypto
+        ZLIB::ZLIB
         Threads::Threads
 )
 
