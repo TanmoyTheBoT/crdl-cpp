@@ -48,17 +48,13 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: '${{ github.workspace }}/crdl-cpp/vcpkg'
-          vcpkgGitCommitId: 'a42af01b72c28a8e1d7b48107b33e4f286a55ef6'
-        env:
-          VCPKG_BINARY_SOURCES: 'clear'
+          vcpkgGitCommitId: 'c8696863d371ab7f46e213d8f5ca923c4aef2a00'
 
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
 
       - name: Configure CMake
         working-directory: crdl-cpp
-        env:
-          VCPKG_BINARY_SOURCES: 'clear'
         run: |
           cmake -B build -S . `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
@@ -270,83 +266,20 @@ jobs:
             echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Generate release notes
-        id: release_notes
+      - name: Get commit info
+        id: commit_info
         run: |
-          cat > release_notes.md << 'EOF'
-          ## CRDL - Crunchyroll Downloader ${{ steps.version.outputs.VERSION }}
-
-          ### 📦 Download Options
-
-          Choose the build that best suits your needs:
-
-          #### 🎯 **Static Build (Recommended for most users)**
-          - **File**: `crdl-windows-x64-static-*.zip`
-          - ✅ Single executable file
-          - ✅ No dependencies required
-          - ✅ Larger file size (~20-30 MB)
-          - ✅ Easier to distribute and run
-
-          #### ⚡ **Dynamic Build (Advanced users)**
-          - **File**: `crdl-windows-x64-dynamic-*.zip`
-          - ⚡ Smaller executable size
-          - ⚡ Requires DLL dependencies (included)
-          - ⚡ DLLs must stay in bin/ folder
-
-          ### 📋 System Requirements
-
-          - **OS**: Windows 10/11 (64-bit)
-          - **Additional Tools**: N_m3u8DL-RE and mkvmerge must be in PATH
-
-          ### 🚀 Quick Start
-
-          1. Download your preferred build
-          2. Extract the ZIP file
-          3. Open terminal in extracted folder
-          4. Run `crdl.exe --help` (static) or `bin\crdl.exe --help` (dynamic)
-
-          ### 📝 Usage Examples
-
-          ```bash
-          # Download episode
-          crdl.exe -e EPISODE_ID -u your@email.com -p password
-
-          # Download season in 720p
-          crdl.exe -S SEASON_ID -q 720p
-
-          # Download entire series
-          crdl.exe -s SERIES_ID
-          ```
-
-          ### 🔧 Installation
-
-          **Static Build:**
-          - Extract and run `crdl.exe` directly
-
-          **Dynamic Build:**
-          - Extract all files
-          - Keep DLLs in bin/ folder
-          - Run `bin\crdl.exe`
-
-          ### 📖 Documentation
-
-          See README.md in the package for full documentation.
-
-          ---
-
-          **Build Information:**
-          - Commit: `$(git rev-parse --short HEAD)`
-          - Build Date: `$(date -u +'%Y-%m-%d %H:%M:%S UTC')`
-          EOF
-
-          echo "Generated release notes"
+          echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: CRDL ${{ steps.version.outputs.VERSION }}
-          body_path: release_notes.md
+          name: ${{ steps.version.outputs.VERSION }}
+          body: |
+            Build: ${{ steps.commit_info.outputs.COMMIT }}
+            Date: ${{ steps.commit_info.outputs.DATE }}
           draft: false
           prerelease: false
           files: |
